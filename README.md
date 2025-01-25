@@ -55,19 +55,24 @@ Além disso, o projeto utiliza outras bibliotecas padrão do Python, como `sys`,
     
 2.  **Crie e ative** um ambiente virtual (opcional, mas recomendado):
 	```bash
-    cd brumatti-s-intel
     python -m venv venv
+ 	```
+
+    ```bash
     source venv/bin/activate  # Linux ou Mac
+    ```
+    
+    ```bash
     venv\Scripts\activate     # Windows
     ``` 
     
-3.  **Instale as dependências** listadas no arquivo `requirements.txt`:
+4.  **Instale as dependências** listadas no arquivo `requirements.txt`:
 
     ```bash
     pip install -r requirements.txt
     ```
     
-4.  **Instale o Playwright** e os navegadores necessários:
+5.  **Instale o Playwright** e os navegadores necessários:
           
     ```bash
     playwright install
