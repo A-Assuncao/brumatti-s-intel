@@ -16,7 +16,7 @@ class ExcelHandler:
         Parameters
         ----------
         filename : str
-            Nome do arquivo Excel (ex: 'Informacoes_Presos.xlsx').
+            Nome do arquivo Excel (ex: 'Informacoes_Presos-02.xlsx').
         """
         self.filename = filename
         self.wb = Workbook()
@@ -62,6 +62,7 @@ class ExcelHandler:
             'Cidade Origem',
             'Estado',
             'País',
+            'Endereço',
             'Estado Civil',
             'Qtd Filhos',
             'Escolaridade',
@@ -116,4 +117,4 @@ class ExcelHandler:
         temp_filename = self.filename + ".temp"
         self.wb.save(temp_filename)
         os.replace(temp_filename, self.filename)
-        print(f"Arquivo Excel salvo como {self.filename}")
+        print(f"\nArquivo Excel salvo como {self.filename}")

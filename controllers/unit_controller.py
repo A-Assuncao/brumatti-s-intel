@@ -1,137 +1,65 @@
 import sys
 import pandas as pd
-from tqdm import tqdm
 from playwright.sync_api import Page, TimeoutError
 from utils.logger import Logger
 
-# Exemplo de URLs (ajuste se necessário)
+# URLs base para cada tipo de página
 URL_CALL = "https://canaime.com.br/sgp2rr/areas/impressoes/UND_ChamadaFOTOS_todos2.php?id_und_prisional="
 URL_MAIN = "https://canaime.com.br/sgp2rr/areas/unidades/cadastro.php?id_cad_preso="
 URL_REPORTS = "https://canaime.com.br/sgp2rr/areas/unidades/Informes_LER.php?id_cad_preso="
 URL_CERTIDAO = "https://canaime.com.br/sgp2rr/areas/impressoes/UND_CertidaoCarceraria.php?id_cad_preso="
 
-# Mapeamento dos novos campos que você quer coletar:
-# - "column_name": nome da coluna que você vai usar no DataFrame
-# - "page": nome lógico da página (MAIN ou REPORTS)
-# - "locator": seletor CSS do Playwright para achar o valor
-# - "default": valor padrão caso não encontre
-NEW_FIELDS = [
-    {
-        "column_name": "Mãe",
-        "page": "MAIN",
-        "locator": "tr:nth-child(3) .titulobk",
-        "default": "NÃO INFORMADO"
-    },
-    {
-        "column_name": "Pai",
-        "page": "MAIN",
-        "locator": "tr:nth-child(4) .titulobk",
-        "default": "NÃO INFORMADO"
-    },
-    {
-        "column_name": "Sexo",
-        "page": "MAIN",
-        "locator": "tr:nth-child(5) .titulobk:nth-child(2)",
-        "default": "NÃO INFORMADO"
-    },
-    {
-        "column_name": "Data Nasc.",
-        "page": "MAIN",
-        "locator": "tr:nth-child(5) .titulobk~ .titulobk",
-        "default": "NÃO INFORMADO"
-    },
-    {
-        "column_name": "Cidade Origem",
-        "page": "MAIN",
-        "locator": "tr:nth-child(8) .titulobk",
-        "default": "NÃO INFORMADO"
-    },
-    {
-        "column_name": "Estado",
-        "page": "MAIN",
-        "locator": "tr:nth-child(9) .titulobk",
-        "default": "NÃO INFORMADO"
-    },
-    {
-        "column_name": "País",
-        "page": "MAIN",
-        "locator": "tr:nth-child(10) .titulobk",
-        "default": "NÃO INFORMADO"
-    },
-    {
-        "column_name": "Estado Civil",
-        "page": "REPORTS",
-        "locator": "tr:nth-child(3) .titulo12bk+ .titulobk",
-        "default": "NÃO INFORMADO"
-    },
-    {
-        "column_name": "Qtd Filhos",
-        "page": "REPORTS",
-        "locator": ".titulobk~ .titulobk+ .titulobk",
-        "default": "NÃO INFORMADO"
-    },
-    {
-        "column_name": "Escolaridade",
-        "page": "REPORTS",
-        "locator": "tr:nth-child(4) .titulobk",
-        "default": "NÃO INFORMADO"
-    },
-    {
-        "column_name": "Religião",
-        "page": "REPORTS",
-        "locator": "tr:nth-child(8) .titulobk",
-        "default": "NÃO INFORMADO"
-    },
-    {
-        "column_name": "Profissão",
-        "page": "REPORTS",
-        "locator": "tr:nth-child(11) .titulobk",
-        "default": "NÃO INFORMADO"
-    },
-    {
-        "column_name": "Cor/Etnia",
-        "page": "REPORTS",
-        "locator": "tr:nth-child(16) .titulobk:nth-child(2)",
-        "default": "NÃO INFORMADO"
-    },
-    {
-        "column_name": "Altura",
-        "page": "REPORTS",
-        "locator": "tr:nth-child(19) .tituloVerde .titulobk",
-        "default": "NÃO INFORMADO"
-    },
-    {
-        "column_name": "Modus Operandi",
-        "page": "REPORTS",
-        "locator": "tr:nth-child(25) .titulobk",
-        "default": "NÃO INFORMADO"
-    },
-    {
-        "column_name": "Sentença Dias",
-        "page": "CERTIDAO",
-        "locator": "p+ table .titulobk+ .titulobk",
-        "default": "NÃO INFORMADO"
-    },
-]
+# Mapeamento dos novos campos. Ajuste conforme sua necessidade
+FIELDS_BY_PAGE = {
+    "MAIN": [
+        {"column_name": "Mãe",           "locator": "tr:nth-child(3) .titulobk",              "default": "NÃO INFORMADO"},
+        {"column_name": "Pai",           "locator": "tr:nth-child(4) .titulobk",              "default": "NÃO INFORMADO"},
+        {"column_name": "Sexo",          "locator": "tr:nth-child(5) .titulobk:nth-child(2)", "default": "NÃO INFORMADO"},
+        {"column_name": "Data Nasc.",    "locator": "tr:nth-child(5) .titulobk~ .titulobk",   "default": "NÃO INFORMADO"},
+        {"column_name": "Cidade Origem", "locator": "tr:nth-child(8) .titulobk",              "default": "NÃO INFORMADO"},
+        {"column_name": "Estado",        "locator": "tr:nth-child(9) .titulobk",              "default": "NÃO INFORMADO"},
+        {"column_name": "País",          "locator": "tr:nth-child(10) .titulobk",             "default": "NÃO INFORMADO"},
+        {"column_name": "Endereço",      "locator": "tr:nth-child(25) .titulobk",             "default": "NÃO INFORMADO"},
+    ],
+    "REPORTS": [
+        {"column_name": "Estado Civil",  "locator": "tr:nth-child(3) .titulo12bk+ .titulobk", "default": "NÃO INFORMADO"},
+        {"column_name": "Qtd Filhos",    "locator": ".titulobk~ .titulobk+ .titulobk",        "default": "NÃO INFORMADO"},
+        {"column_name": "Escolaridade",  "locator": "tr:nth-child(4) .titulobk",              "default": "NÃO INFORMADO"},
+        {"column_name": "Religião",      "locator": "tr:nth-child(8) .titulobk",              "default": "NÃO INFORMADO"},
+        {"column_name": "Profissão",     "locator": "tr:nth-child(11) .titulobk",             "default": "NÃO INFORMADO"},
+        {"column_name": "Cor/Etnia",     "locator": "tr:nth-child(16) .titulobk:nth-child(2)","default": "NÃO INFORMADO"},
+        {"column_name": "Altura",        "locator": "tr:nth-child(19) .tituloVerde .titulobk","default": "NÃO INFORMADO"},
+        {"column_name": "Modus Operandi","locator": "tr:nth-child(25) .titulobk",             "default": "NÃO INFORMADO"},
+    ],
+    "CERTIDAO": [
+        {"column_name": "Sentença Dias", "locator": "p+ table .titulobk+ .titulobk",          "default": "NÃO INFORMADO"},
+    ]
+}
+
 
 class UnitProcessor:
     """
-    Classe responsável por criar a lista de detentos (DataFrame)
-    e acrescentar as informações extras no mesmo DataFrame.
+    Classe responsável por:
+      1) Criar uma lista de detentos (DataFrame) para determinada unidade.
+      2) Enriquecer o DataFrame com campos extras, coletando informações
+         de páginas distintas (MAIN, REPORTS, CERTIDAO).
     """
 
     def __init__(self, page: Page):
         """
         Parameters
         ----------
-        page : Page
-            Página (Playwright) autenticada.
+        page : Page (Playwright)
+            Página já autenticada no sistema.
         """
         self.page = page
 
+
     def create_unit_list(self, unit: str) -> pd.DataFrame:
         """
-        Cria um DataFrame com [Ala, Cela, Código, Preso].
+        Acessa a página de chamada (URL_CALL + unit), coleta a lista de presos,
+        retornando um DataFrame com colunas:
+        ['Ala', 'Cela', 'Código', 'Preso'].
 
         Parameters
         ----------
@@ -141,7 +69,6 @@ class UnitProcessor:
         Returns
         -------
         pd.DataFrame
-            DataFrame com as colunas ['Ala', 'Cela', 'Código', 'Preso'].
         """
         df = pd.DataFrame(columns=['Ala', 'Cela', 'Código', 'Preso'])
         try:
@@ -151,6 +78,8 @@ class UnitProcessor:
             count = all_entries.count()
 
             for i in range(count):
+                # entry_text contem algo como:
+                # "LS123456\n      \n      \n      \nALA: A1 / 01" (exemplo)
                 entry_text = all_entries.nth(i).text_content()
                 entry_text = entry_text.replace(" ", "").strip()
                 code, _, _, _, wing_cell = entry_text.split('\n')
@@ -159,89 +88,167 @@ class UnitProcessor:
                 # Ajuste de ala e cela
                 wing_cell = wing_cell.replace("ALA:", "")
                 split_index = wing_cell.rfind('/')
-                wing = wing_cell[:split_index].strip()
-                cell = wing_cell[split_index + 1:].strip()
 
-                # Insere no DataFrame
+                if split_index != -1:
+                    if unit in ['CME', 'DICAP']:
+                        # Para CME e DICAP, a cela será a parte antes da barra.
+                        cell = wing_cell[:split_index].strip()
+                        wing = wing_cell[split_index + 1:].strip()
+                    else:
+                        # Caso padrão: wing é a parte antes da barra e cell a parte após a barra.
+                        wing = wing_cell[:split_index].strip()
+                        cell = wing_cell[split_index + 1:].strip()
+                else:
+                    wing = wing_cell.strip()
+                    cell = ""
+
+                # code[2:] para remover algum prefixo (ex: "LS123456" -> "123456")
                 df.loc[len(df)] = [wing, cell, code[2:], inmate_name]
 
         except Exception as e:
             Logger.capture_error(e)
+            # Em caso de falha crítica, encerramos o programa.
             sys.exit(1)
 
         return df
 
-    def enrich_unit_list(self, df: pd.DataFrame, pbar: tqdm) -> pd.DataFrame:
+
+    def prepare_extra_columns(self, df: pd.DataFrame) -> None:
         """
-        Acrescenta colunas extras (ex.: "Mãe", "Pai", etc.) ao DataFrame.
+        Garante que todas as colunas definidas em FIELDS_BY_PAGE existam no DataFrame
+        (preenchidas com 'NÃO INFORMADO').
 
         Parameters
         ----------
         df : pd.DataFrame
-            DataFrame original com [Ala, Cela, Código, Preso].
-        pbar : tqdm
-            Barra de progresso para feedback ao usuário.
+        """
+        all_columns = set()
+        for page_type, fields in FIELDS_BY_PAGE.items():
+            for field_info in fields:
+                all_columns.add(field_info["column_name"])
+
+        for col_name in all_columns:
+            if col_name not in df.columns:
+                df[col_name] = "NÃO INFORMADO"
+
+    def get_inmate_full_info(self, code: str) -> dict:
+        """
+        Coleta as informações completas de 1 detento (MAIN, REPORTS, CERTIDAO),
+        retornando um dicionário {coluna: valor_coletado}.
+
+        Parameters
+        ----------
+        code : str
+            Código do preso, ex: "123456"
+
+        Returns
+        -------
+        dict
+            Ex: {
+                "Mãe": "...",
+                "Pai": "...",
+                "Estado Civil": "...",
+                ...
+            }
+        """
+        all_data = {}
+        try:
+            # MAIN
+            data_main = self._scrape_page(code, "MAIN")
+            all_data.update(data_main)
+
+            # REPORTS
+            data_reports = self._scrape_page(code, "REPORTS")
+            all_data.update(data_reports)
+
+            # CERTIDAO
+            data_cert = self._scrape_page(code, "CERTIDAO")
+            all_data.update(data_cert)
+
+        except TimeoutError as te:
+            Logger.capture_error(te)
+        except Exception as e:
+            Logger.capture_error(e)
+
+        return all_data
+
+    def _scrape_page(self, code: str, page_type: str) -> dict:
+        """
+        Acessa a página correspondente (MAIN, REPORTS, CERTIDAO) e,
+        para cada campo definido em FIELDS_BY_PAGE[page_type],
+        tenta coletar via locator. Se não encontrar, utiliza o 'default'.
+
+        Parameters
+        ----------
+        code : str
+            Código do preso (ex: "123456")
+        page_type : str
+            'MAIN', 'REPORTS' ou 'CERTIDAO'
+
+        Returns
+        -------
+        dict
+            {nome_coluna: valor_coletado}
+        """
+        result = {}
+
+        # Define a URL
+        if page_type == "MAIN":
+            url = f"{URL_MAIN}{code}"
+        elif page_type == "REPORTS":
+            url = f"{URL_REPORTS}{code}"
+        elif page_type == "CERTIDAO":
+            url = f"{URL_CERTIDAO}{code}"
+        else:
+            # Tipo de página inválido, retorna dicionário vazio
+            return result
+
+        # Acessa a página
+        self.page.goto(url, timeout=0)
+
+        # Para cada campo, coleta texto (ou default)
+        for field_def in FIELDS_BY_PAGE[page_type]:
+            col_name = field_def["column_name"]
+            locator = field_def["locator"]
+            default_val = field_def["default"]
+
+            elements = self.page.locator(locator)
+            count_elems = elements.count()
+
+            if count_elems > 0:
+                # Pode haver múltiplos matches (ex: Endereço em 2 locators).
+                all_contents = elements.all_text_contents()
+                # Junta tudo em uma única string (ou trate individualmente se necessário)
+                combined_text = "\n".join(t.strip() for t in all_contents if t.strip())
+                result[col_name] = combined_text
+            else:
+                result[col_name] = default_val
+
+        return result
+
+    def enrich_unit_list(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        (Opcional) Método para, dentro desta classe, enriquecer o DataFrame diretamente
+        - Não é estritamente necessário, pois você pode fazer a iteração direto no main.py.
+
+        Neste exemplo, simplesmente itera sobre df.iterrows() e chama get_inmate_full_info().
+
+        Parameters
+        ----------
+        df : pd.DataFrame
 
         Returns
         -------
         pd.DataFrame
-            Mesmo DataFrame, com colunas adicionais.
         """
-        for field in NEW_FIELDS:
-            col_name = field["column_name"]
-            if col_name not in df.columns:
-                df[col_name] = field["default"]  # Preenche com default no início
+        self.prepare_extra_columns(df)
 
-        for index, row in df.iterrows():
-            code = row['Código']
-            try:
-                fields_by_page = {"MAIN": [], "REPORTS": [], "CERTIDAO": []}
-                for field in NEW_FIELDS:
-                    fields_by_page[field["page"]].append(field)
+        for i, row in df.iterrows():
+            code = row["Código"]
+            extra_data = self.get_inmate_full_info(code)
 
-                # MAIN
-                if fields_by_page["MAIN"]:
-                    self.page.goto(f"{URL_MAIN}{code}", timeout=0)
-                    for f in fields_by_page["MAIN"]:
-                        locator_count = self.page.locator(f["locator"]).count()
-                        if locator_count > 0:
-                            text_val = self.page.locator(f["locator"]).text_content().strip()
-                        else:
-                            text_val = f["default"]
-                        df.at[index, f["column_name"]] = text_val
-
-                # REPORTS
-                if fields_by_page["REPORTS"]:
-                    self.page.goto(f"{URL_REPORTS}{code}", timeout=0)
-                    for f in fields_by_page["REPORTS"]:
-                        locator_count = self.page.locator(f["locator"]).count()
-                        if locator_count > 0:
-                            text_val = self.page.locator(f["locator"]).text_content().strip()
-                        else:
-                            text_val = f["default"]
-                        df.at[index, f["column_name"]] = text_val
-
-                # CERTIDAO
-                if fields_by_page["CERTIDAO"]:
-                    self.page.goto(f"{URL_CERTIDAO}{code}", timeout=0)
-                    for f in fields_by_page["CERTIDAO"]:
-                        locator = self.page.locator(f["locator"])
-                        all_texts = locator.all_text_contents()
-                        if len(all_texts) == 0:
-                            text_val = f["default"]
-                        else:
-                            text_val = "\n".join(txt.strip() for txt in all_texts)
-                        df.at[index, f["column_name"]] = text_val
-
-                # Atualiza a barra de progresso
-                pbar.set_postfix({"Preso": row["Preso"]})
-                pbar.update(1)
-
-            except TimeoutError as te:
-                Logger.capture_error(te)
-                print(f"Timeout ao coletar dados do código {code}")
-            except Exception as e:
-                Logger.capture_error(e)
-                print(f"Erro ao coletar dados do código {code}, prosseguindo...")
+            # Atualiza no DataFrame
+            for k, v in extra_data.items():
+                df.at[i, k] = v
 
         return df
