@@ -3,7 +3,8 @@ import time
 import threading
 import pandas as pd
 from openpyxl import Workbook
-from openpyxl.styles import Border, Side
+from openpyxl.styles import Border, Side, Font
+from openpyxl.comments import Comment
 
 class ExcelHandler:
     """
@@ -39,7 +40,7 @@ class ExcelHandler:
             Código da unidade (ex. 'PAMC').
         df : pd.DataFrame
             DataFrame contendo as colunas:
-            ['Ala', 'Cela', 'Código', 'Preso', 'Mãe', 'Pai', 'Sexo', ...]
+            ['Ala', 'Cela', 'Código', 'Foto', 'Preso', 'Mãe', 'Pai', 'Sexo', ...]
         """
         # Remove a planilha padrão "Sheet" se ainda existir
         if "Sheet" in self.wb.sheetnames and len(self.wb.sheetnames) == 1:
@@ -54,6 +55,7 @@ class ExcelHandler:
             'Ala',
             'Cela',
             'Código',
+            'Foto',
             'Preso',
             'Mãe',
             'Pai',
@@ -83,6 +85,11 @@ class ExcelHandler:
         for cell in ws[1]:
             cell.border = self.thin_border
 
+        # Obtém o índice da coluna "Foto" (se existir)
+        foto_col_index = None
+        if 'Foto' in columns:
+            foto_col_index = columns.index('Foto') + 1  # +1 porque Excel é 1-indexed
+        
         # Escreve cada linha do DataFrame
         for i, row in df.iterrows():
             data_row = []
@@ -93,6 +100,21 @@ class ExcelHandler:
             # Aplica borda nas células da linha recém-adicionada
             for cell in ws[ws.max_row]:
                 cell.border = self.thin_border
+            
+            # Se a coluna "Foto" existe e o valor não é "SEM FOTO", criar hyperlink
+            if foto_col_index is not None:
+                cell = ws.cell(row=ws.max_row, column=foto_col_index)
+                if cell.value != "SEM FOTO":
+                    # Criar um hyperlink na célula
+                    url = cell.value
+                    cell.hyperlink = url
+                    # Estilizar como link (azul e sublinhado)
+                    cell.font = Font(color="0000FF", underline="single")
+                    # Texto de exibição mais amigável
+                    cell.value = "Ver Foto"
+                    # Adicionar um comentário com a URL completa
+                    comment = Comment(f"URL: {url}", "Sistema")
+                    cell.comment = comment
 
     def save_periodically(self, interval: int = 300):
         """

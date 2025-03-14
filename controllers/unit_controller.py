@@ -59,7 +59,7 @@ class UnitProcessor:
         """
         Acessa a página de chamada (URL_CALL + unit), coleta a lista de presos,
         retornando um DataFrame com colunas:
-        ['Ala', 'Cela', 'Código', 'Preso'].
+        ['Ala', 'Cela', 'Código', 'Foto', 'Preso'].
 
         Parameters
         ----------
@@ -70,13 +70,33 @@ class UnitProcessor:
         -------
         pd.DataFrame
         """
-        df = pd.DataFrame(columns=['Ala', 'Cela', 'Código', 'Preso'])
+        df = pd.DataFrame(columns=['Ala', 'Cela', 'Código', 'Foto', 'Preso'])
         try:
             self.page.goto(URL_CALL + unit, timeout=0)
             all_entries = self.page.locator('.titulobkSingCAPS')
             names = self.page.locator('.titulobkSingCAPS .titulo12bk')
             count = all_entries.count()
-
+            
+            # Capturar todas as imagens da página
+            inicio = 'https://canaime.com.br/sgp2rr/fotos/presos/'
+            all_imgs = self.page.locator('img')
+            img_count = all_imgs.count()
+            print(f"Total de entradas: {count}, Total de imagens: {img_count}")
+            
+            # Criar lista de URLs de fotos
+            foto_urls = []
+            for i in range(img_count):
+                foto_src = all_imgs.nth(i).get_attribute('src')
+                if foto_src:
+                    # Extrair o nome do arquivo da imagem (após a última barra)
+                    nome_arquivo = foto_src.split('/')[-1]
+                    link_foto = inicio + nome_arquivo
+                    foto_urls.append(link_foto)
+            
+            # Se não temos fotos suficientes, preencher com "SEM FOTO"
+            while len(foto_urls) < count:
+                foto_urls.append("SEM FOTO")
+            
             for i in range(count):
                 # entry_text contem algo como:
                 # "LS123456\n      \n      \n      \nALA: A1 / 01" (exemplo)
@@ -84,7 +104,10 @@ class UnitProcessor:
                 entry_text = entry_text.replace(" ", "").strip()
                 code, _, _, _, wing_cell = entry_text.split('\n')
                 inmate_name = names.nth(i).text_content().strip()
-
+                
+                # Usar a foto correspondente (se existir)
+                link_foto = foto_urls[i] if i < len(foto_urls) else "SEM FOTO"
+                
                 # Ajuste de ala e cela
                 wing_cell = wing_cell.replace("ALA:", "")
                 split_index = wing_cell.rfind('/')
@@ -103,7 +126,7 @@ class UnitProcessor:
                     cell = ""
 
                 # code[2:] para remover algum prefixo (ex: "LS123456" -> "123456")
-                df.loc[len(df)] = [wing, cell, code[2:], inmate_name]
+                df.loc[len(df)] = [wing, cell, code[2:], link_foto, inmate_name]
 
         except Exception as e:
             Logger.capture_error(e)
@@ -129,7 +152,8 @@ class UnitProcessor:
 
         for col_name in all_columns:
             if col_name not in df.columns:
-                df[col_name] = "NÃO INFORMADO"
+                # Usar df.loc para evitar SettingWithCopyWarning
+                df.loc[:, col_name] = "NÃO INFORMADO"
 
     def get_inmate_full_info(self, code: str) -> dict:
         """

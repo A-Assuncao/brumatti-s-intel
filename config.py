@@ -12,13 +12,13 @@ units = (
     'CPFBV', # Cadeia Pública Feminina de Boa Vista
     'CPP',   # Centro de Progressão Penitenciária
     'CABV',  # Casa do Albergado de Boa Vista
-    'UPPRO', # Unidade Prisional de Rorainópolis
+    'UPRRO', # Unidade Prisional de Rorainópolis
     'CME',   # Central de Monitoração Eletrônica
     'DICAP'  # Divisão de Inteligência e Captura
 )
 
 # Versão atual do aplicativo (para uso no updater)
-current_version = 'v0.1.0'
+current_version = 'v0.1.1'
 
 # Nome padrão do arquivo Excel de saída
-excel_filename = 'Informacoes_Presos-02.xlsx'
+excel_filename = 'Informacoes_Presos.xlsx'

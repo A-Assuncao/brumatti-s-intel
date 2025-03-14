@@ -91,7 +91,7 @@ def main():
                     # Coleta dados extras e atualiza a row
                     extra_data = processor.get_inmate_full_info(code)
                     for col, val in extra_data.items():
-                        df_unit.at[i, col] = val
+                        df_unit.loc[i, col] = val  # Usar .loc em vez de .at para evitar warnings
                 except Exception as e:
                     Logger.capture_error(e)
                     print(f"Erro ao processar preso '{inmate_name}' (código: {code}).", flush=True)
@@ -125,7 +125,8 @@ def main():
                     flush=True
                 )
 
-            df_unit.sort_values(by=["Ala", "Cela", "Preso"], inplace=True)
+            # Ordenar os dados (sem usar inplace para evitar warnings)
+            df_unit = df_unit.sort_values(by=["Ala", "Cela", "Preso"])
 
             # 5) Salvar planilha com resultados da unidade
             excel_handler.create_unit_sheet(unit, df_unit)
@@ -134,8 +135,161 @@ def main():
         print("\nProcessamento concluído com sucesso!")
 
 
+def test_with_limited_inmates(limit=5):
+    """
+    Função de teste que processa apenas um número limitado de presos por unidade.
+    
+    Parameters
+    ----------
+    limit : int
+        Número máximo de presos a serem processados por unidade.
+    """
+    print(f"MODO DE TESTE: Processando até {limit} presos por unidade")
+    
+    # Inicia Playwright e faz login
+    with sync_playwright() as p:
+        login_controller = CanaimeLogin(p, headless=True)
+        page = login_controller.login()
+
+        # Inicializa processor + Excel
+        processor = UnitProcessor(page)
+        excel_handler = ExcelHandler(f"teste_{limit}_presos_por_unidade.xlsx")
+
+        for unit_index, unit in enumerate(units, start=1):
+            print("\n" + "="*60)
+            print(f"[{unit_index}/{len(units)}] Iniciando processamento da unidade: {unit}")
+            
+            try:
+                # Cria lista de presos para a unidade
+                df_unit = processor.create_unit_list(unit)
+                
+                # Limita o número de presos a serem processados
+                if len(df_unit) > limit:
+                    print(f"Limitando de {len(df_unit)} para {limit} presos")
+                    df_unit = df_unit.head(limit).copy()  # Criar uma cópia explicita
+                
+                total_inmates_unit = len(df_unit)
+                print(f"Total de presos em {unit}: {total_inmates_unit}", flush=True)
+                
+                if total_inmates_unit == 0:
+                    continue  # nada a processar
+                
+                # Prepara colunas extras
+                processor.prepare_extra_columns(df_unit)
+                
+                # Processa cada preso
+                for i, row in df_unit.iterrows():
+                    code = row["Código"]
+                    inmate_name = row["Preso"]
+                    
+                    try:
+                        # Coleta dados extras e atualiza a row
+                        extra_data = processor.get_inmate_full_info(code)
+                        for col, val in extra_data.items():
+                            df_unit.loc[i, col] = val  # Usar .loc em vez de .at
+                    except Exception as e:
+                        Logger.capture_error(e)
+                        print(f"Erro ao processar preso '{inmate_name}' (código: {code}).", flush=True)
+                    
+                    print(f"[{unit_index}/{len(units)}][{unit}] [{i+1}/{total_inmates_unit}] {inmate_name}", flush=True)
+                
+                # Ordena os dados (sem usar inplace)
+                df_unit = df_unit.sort_values(by=["Ala", "Cela", "Preso"])
+                
+                # Salva no Excel
+                excel_handler.create_unit_sheet(unit, df_unit)
+                excel_handler.save()
+                
+            except Exception as e:
+                Logger.capture_error(e)
+                print(f"Erro ao processar unidade '{unit}'. Pulando...", flush=True)
+        
+        print("\nTeste concluído com sucesso!")
+
+
+def test_single_unit(unit_code, limit=5):
+    """
+    Função de teste que processa apenas uma unidade específica com um número limitado de presos.
+    
+    Parameters
+    ----------
+    unit_code : str
+        Código da unidade a ser processada (ex: 'PAMC')
+    limit : int
+        Número máximo de presos a serem processados.
+    """
+    print(f"MODO DE TESTE: Processando a unidade {unit_code} com até {limit} presos")
+    
+    # Inicia Playwright e faz login
+    with sync_playwright() as p:
+        login_controller = CanaimeLogin(p, headless=True)
+        page = login_controller.login()
+
+        # Inicializa processor + Excel
+        processor = UnitProcessor(page)
+        excel_handler = ExcelHandler(f"teste_unidade_{unit_code}_{limit}_presos.xlsx")
+            
+        try:
+            # Cria lista de presos para a unidade
+            df_unit = processor.create_unit_list(unit_code)
+            
+            # Limita o número de presos a serem processados
+            if len(df_unit) > limit:
+                print(f"Limitando de {len(df_unit)} para {limit} presos")
+                df_unit = df_unit.head(limit).copy()  # Criar uma cópia explicita
+            
+            total_inmates_unit = len(df_unit)
+            print(f"Total de presos em {unit_code}: {total_inmates_unit}", flush=True)
+            
+            if total_inmates_unit == 0:
+                print("Nenhum preso encontrado. Finalizando teste.")
+                return
+            
+            # Prepara colunas extras
+            processor.prepare_extra_columns(df_unit)
+            
+            # Processa cada preso
+            for i, row in df_unit.iterrows():
+                code = row["Código"]
+                inmate_name = row["Preso"]
+                
+                try:
+                    # Coleta dados extras e atualiza a row
+                    extra_data = processor.get_inmate_full_info(code)
+                    for col, val in extra_data.items():
+                        df_unit.loc[i, col] = val  # Usar .loc em vez de .at
+                except Exception as e:
+                    Logger.capture_error(e)
+                    print(f"Erro ao processar preso '{inmate_name}' (código: {code}).", flush=True)
+                
+                print(f"[{unit_code}] [{i+1}/{total_inmates_unit}] {inmate_name}", flush=True)
+            
+            # Ordena os dados (sem usar inplace)
+            df_unit = df_unit.sort_values(by=["Ala", "Cela", "Preso"])
+            
+            # Adiciona uma coluna para testar se a nova coluna Foto está funcionando corretamente
+            df_unit['Tem Foto'] = df_unit['Foto'].apply(lambda x: "SIM" if x != "SEM FOTO" else "NÃO")
+            
+            # Salva no Excel
+            excel_handler.create_unit_sheet(unit_code, df_unit)
+            excel_handler.save()
+            
+        except Exception as e:
+            Logger.capture_error(e)
+            print(f"Erro ao processar unidade '{unit_code}'.", flush=True)
+    
+    print("\nTeste concluído com sucesso!")
+
+
 if __name__ == "__main__":
     try:
+        # Para rodar o teste com 5 presos por unidade, descomente a linha abaixo:
+        # test_with_limited_inmates(5)
+        
+        # Para testar apenas uma unidade específica, descomente a linha abaixo e ajuste os parâmetros:
+        # test_single_unit('PAMC', 5)  # Substitua 'PAMC' pela unidade desejada
+        
+        # Para rodar o programa normal
         main()
     except Exception as e:
         Logger.capture_error(e)
